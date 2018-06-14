@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <semaphore.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -11,10 +12,12 @@
 #include <sys/sem.h>
 
 typedef struct memoriaCompartida{
-	int bandera;
-	/* int datos; */
+	int bandera;	
 	char datos[10];
 } variableMem;
+
+int NO_PROCESOS = 10;
+int NO_IO = 20;
 
 int crearSemaforo(char*);
 int inicializarSemaforo(int, int, int);
@@ -23,28 +26,32 @@ int crearMemoriaCompartida(int, variableMem**);
 int obtenerValorSemaforo(int, int);
 int operacionSemaforo(int, int, int);
 void imprimirSemaforos(int);
-void inicializarMemorias(variableMem***, variableMem**, variableMem**, variableMem**);
+void crearArchivo(FILE**, int);
+void escribirLinea(FILE**, char*);
 
 int main() {
 	int semId, shmId1, shmId2, shmId3, contadorLectura, contadorMemoria, processCounter;
 	char *nombreSemaforo = {"/semaforo7"};	
 	char *auxLectura;
-	int childPid; 	
+	int childPid;
+	char lectura[150];
+	FILE  **file;
 	variableMem *arregloMem;	
-
 	semId = crearSemaforo(nombreSemaforo);
 	
 	if(semId != -1) {		
-		shmId1 = crearMemoriaCompartida(1, &arregloMem);		
-
-		for(processCounter = 0; processCounter < 3; processCounter ++) {
+		shmId1 = crearMemoriaCompartida(1, &arregloMem);
+		file = (FILE**) malloc(10*sizeof(FILE*));
+		for(int counter = 0; counter < 10; counter++)
+			crearArchivo(&file[counter], counter);
+		for(processCounter = 0; processCounter < NO_PROCESOS; processCounter ++) {
 			childPid = fork();
 			switch(childPid) {
 				case -1:
 					printf("Error al crear el proceso hijo\n");
 					break;
 				case 0:
-					for (contadorLectura = 0; contadorLectura < 20; ) {
+					for (contadorLectura = 0; contadorLectura < NO_IO; ) {
 						/* decrementar semaforo consumidor */
 						operacionSemaforo(semId, 1, 0);
 						for(contadorMemoria = 2 ; contadorMemoria < 7; contadorMemoria++) {
@@ -52,10 +59,13 @@ int main() {
 							operacionSemaforo(semId, contadorMemoria, 0);
 							variableMem* aux = &arregloMem[contadorMemoria - 2];
 							/* printf("valores %d, %d\n", aux->bandera, aux.datos); */
-							if (aux->bandera == 1) {									
-								printf("Consumidor %d, no. lectura %d, datos: %s\n", processCounter, contadorLectura, aux->datos);
+							if (aux->bandera == 1) {
+								lectura[0] = '\0';
+								sprintf(lectura, "Consumidor %d, no. lectura %d, datos: %s\n", processCounter + 1, contadorLectura + 1, aux->datos);								
+								printf("Consumidor %d, no. lectura %d, datos: %s\n", processCounter + 1, contadorLectura + 1, aux->datos);
+								escribirLinea(&file[aux->datos[0] - 97], lectura);
 								aux->bandera = 0;
-								aux->datos[0] = '\0';
+								aux->datos[0] = '\0';								
 								operacionSemaforo(semId, contadorMemoria, 1);	
 								contadorLectura ++;				
 								break;
@@ -70,6 +80,9 @@ int main() {
 					break;
 			} 
 		}
+
+		for(processCounter = 0; processCounter < 10; processCounter ++)
+			fclose(file[processCounter]);
 
 		for(processCounter = 0; processCounter < 10; processCounter ++) 
 			wait(&childPid);
@@ -192,6 +205,19 @@ void imprimirSemaforos(int semId) {
 	}
 }
 
-void inicializarMemorias(variableMem*** arreglo, variableMem** mem1, variableMem** mem2, variableMem** mem3) {
+void crearArchivo(FILE** file, int contador) {
+	char mainPath[150] = "/Users/condeluis/Documents/SO/segundoSemestre/Semaforos/Practica5/archivos/";	
+	char aux[10] = "";
+	char path[160] = "";
+	FILE *ptr;			
+	
+	sprintf(aux,"%d.txt", contador + 1);
+	strcpy(path, mainPath);
+	strcat(path, aux);
+	/* printf("%s\n", path); */
+	*file = fopen(path, "a+");	
+}
 
+void escribirLinea(FILE** file, char* line){
+	fprintf(*file, "%s", line);
 }

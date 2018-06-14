@@ -13,9 +13,11 @@
 
 typedef struct memoriaCompartida{
 	int bandera;
-	char datos[10];
-	/* int datos; */
+	char datos[10];	
 } variableMem;
+
+int NO_PROCESOS = 10;
+int NO_IO = 20;
 
 int crearSemaforo(char*);
 int inicializarSemaforo(int, int, int);
@@ -41,21 +43,21 @@ int main() {
 		printf("Proceso con ID: %d\n", getpid());
 		shmId1 = crearMemoriaCompartida(1, &arregloMem);		
 		
-		for(processCounter = 0; processCounter < 3; processCounter ++) {
+		for(processCounter = 0; processCounter < NO_PROCESOS; processCounter ++) {
 			childPid = fork();
 			switch(childPid){
 				case -1:
 					printf("Error al crear el proceso hijo\n");					
 					break;
 				case 0://proceso hijo
-					for (contadorEscritura = 0; contadorEscritura < 20; ) {	
+					for (contadorEscritura = 0; contadorEscritura < NO_IO; ) {	
 						/* decrementar semaforo productor */
 						operacionSemaforo(semId, 0, 0);				
 						for(contadorMemoria = 2 ; contadorMemoria < 7; contadorMemoria++) {				
 							operacionSemaforo(semId, contadorMemoria, 0);								
 							variableMem* aux = &arregloMem[contadorMemoria - 2];								
 							if (aux->bandera == 0) {
-								printf("Productor con PID %d, y no. escritura %d\n", getpid(), contadorEscritura);
+								printf("Productor con PID %d, y no. escritura %d\n", getpid(), contadorEscritura + 1);
 								for(contadorLetra = 0; contadorLetra < 9; contadorLetra ++)									
 									aux->datos[contadorLetra] = processCounter + 97;
 								aux->datos[contadorLetra] = '\0';
