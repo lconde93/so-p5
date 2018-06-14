@@ -10,12 +10,14 @@
 #include <sys/ipc.h>
 #include <sys/shm.h>
 #include <sys/sem.h>
+#include<sys/stat.h>
 
 typedef struct memoriaCompartida{
 	int bandera;	
 	char datos[10];
 } variableMem;
 
+#define MAX_BUF 1024
 int NO_PROCESOS = 10;
 int NO_IO = 20;
 
@@ -26,15 +28,18 @@ int crearMemoriaCompartida(int, variableMem**);
 int obtenerValorSemaforo(int, int);
 int operacionSemaforo(int, int, int);
 void imprimirSemaforos(int);
-void crearArchivo(FILE**, int);
+void crearArchivo(FILE**, int, int*);
 void escribirLinea(FILE**, char*);
+void desligarFifo();
 
 int main() {
-	int semId, shmId1, shmId2, shmId3, contadorLectura, contadorMemoria, processCounter;
+	int semId, shmId1, shmId2, shmId3, contadorLectura, contadorMemoria, processCounter, bytesLeidos;
 	char *nombreSemaforo = {"/semaforo7"};	
 	char *auxLectura;
-	int childPid;
+	char bufferLeido[150] = "";
+	int childPid, grandsonPid;	
 	char lectura[150];
+	int pipesArray[10];
 	FILE  **file;
 	variableMem *arregloMem;	
 	semId = crearSemaforo(nombreSemaforo);
@@ -42,8 +47,9 @@ int main() {
 	if(semId != -1) {		
 		shmId1 = crearMemoriaCompartida(1, &arregloMem);
 		file = (FILE**) malloc(10*sizeof(FILE*));
-		for(int counter = 0; counter < 10; counter++)
-			crearArchivo(&file[counter], counter);
+		for(int counter = 0; counter < 10; counter++){
+			crearArchivo(&file[counter], counter, &pipesArray[counter]);
+		}
 		for(processCounter = 0; processCounter < NO_PROCESOS; processCounter ++) {
 			childPid = fork();
 			switch(childPid) {
@@ -62,10 +68,24 @@ int main() {
 							if (aux->bandera == 1) {
 								lectura[0] = '\0';
 								sprintf(lectura, "Consumidor %d, no. lectura %d, datos: %s\n", processCounter + 1, contadorLectura + 1, aux->datos);								
-								printf("Consumidor %d, no. lectura %d, datos: %s\n", processCounter + 1, contadorLectura + 1, aux->datos);
-								escribirLinea(&file[aux->datos[0] - 97], lectura);
+								printf("Consumidor %d, no. lectura %d, datos: %s\n", processCounter + 1, contadorLectura + 1, aux->datos);								
 								aux->bandera = 0;
-								aux->datos[0] = '\0';								
+								aux->datos[0] = '\0';
+								grandsonPid = fork();
+								switch(grandsonPid){
+									case -1:
+										break;
+									case 0:/* child */
+										bytesLeidos = read(pipesArray[aux->datos[0] - 97], bufferLeido, MAX_BUF);
+										bufferLeido[bytesLeidos] = '\0';
+										escribirLinea(&file[aux->datos[0] - 97], bufferLeido);
+										exit(0);
+									default:/* father */
+										write(pipesArray[aux->datos[0] - 97], lectura, (strlen(lectura)+1)); 
+										break;
+
+								}
+								wait(&grandsonPid);
 								operacionSemaforo(semId, contadorMemoria, 1);	
 								contadorLectura ++;				
 								break;
@@ -81,9 +101,11 @@ int main() {
 			} 
 		}
 
-		for(processCounter = 0; processCounter < 10; processCounter ++)
+		for(processCounter = 0; processCounter < 10; processCounter ++){
 			fclose(file[processCounter]);
-
+			close(pipesArray[processCounter]);			
+		}
+		desligarFifo();			
 		for(processCounter = 0; processCounter < 10; processCounter ++) 
 			wait(&childPid);
 			
@@ -205,19 +227,35 @@ void imprimirSemaforos(int semId) {
 	}
 }
 
-void crearArchivo(FILE** file, int contador) {
+void crearArchivo(FILE** file, int contador, int *pipe) {
 	char mainPath[150] = "/Users/condeluis/Documents/SO/segundoSemestre/Semaforos/Practica5/archivos/";	
 	char aux[10] = "";
 	char path[160] = "";
 	FILE *ptr;			
-	
+		
 	sprintf(aux,"%d.txt", contador + 1);
 	strcpy(path, mainPath);
 	strcat(path, aux);
 	/* printf("%s\n", path); */
 	*file = fopen(path, "a+");	
+	/* creacion de pipe */
+	mkfifo(path, 0666);
+	*pipe = open(path, O_RDWR);
 }
 
 void escribirLinea(FILE** file, char* line){
 	fprintf(*file, "%s", line);
+}
+
+void desligarFifo(){
+	char mainPath[150] = "/Users/condeluis/Documents/SO/segundoSemestre/Semaforos/Practica5/archivos/";	
+	char aux[10] = "";
+	char path[160] = "";
+	for(int contador = 0; contador < 10; contador++) {
+		sprintf(aux,"%d.txt", contador + 1);
+		strcpy(path, mainPath);
+		strcat(path, aux);
+		unlink(path);
+	}
+	
 }
