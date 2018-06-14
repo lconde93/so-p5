@@ -101,7 +101,7 @@ int main() {
 
 int crearSemaforo(char* nombreSemaforo) {
 	/*                         P  C  M1 M2 M3  */
-	int valoresIniciales[7] = {3, 0, 1, 1, 1, 1, 1};
+	int valoresIniciales[7] = {5, 0, 1, 1, 1, 1, 1};
 	int semId = -1, contador, bandera, banderaDestruir;
 	key_t key = ftok("/bin/ls", 70);
 	semId = semget(key, 7, 0666|IPC_CREAT|IPC_EXCL) ;
