@@ -84,9 +84,9 @@ int crearSemaforo(char* nombreSemaforo) {
 }
 
 int inicializarSemaforo(int semId, int noSem, int valor) {
-	union semun arg;
-	arg.val = valor;
-	return (semctl(semId, noSem, SETVAL, arg));
+	/*union semun arg;
+	arg.val = valor;*/
+	return (semctl(semId, noSem, SETVAL, valor));
 }
 
     // shmget returns an identifier in shmid

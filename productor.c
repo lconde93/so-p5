@@ -16,7 +16,7 @@ typedef struct memoriaCompartida{
 	char datos[10];	
 } variableMem;
 
-int NO_PROCESOS = 3;
+int NO_PROCESOS = 20;
 int NO_IO = 20;
 #define NO_SEMAFOROS 8
 
@@ -125,9 +125,9 @@ int crearSemaforo(char* nombreSemaforo) {
 }
 
 int inicializarSemaforo(int semId, int noSem, int valor) {
-	union semun arg;
-	arg.val = valor;
-	return (semctl(semId, noSem, SETVAL, arg));
+	/*union semun arg;
+	arg.val = valor;*/
+	return (semctl(semId, noSem, SETVAL, valor));
 }
 
 int crearMemoriaCompartida(int noMem, variableMem** value) {

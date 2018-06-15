@@ -17,13 +17,9 @@ typedef struct memoriaCompartida{
 	char datos[10];
 } variableMem;
 
-typedef struct memoriaPipe{
-	int caso;
-	char datos[150];
-}variablePipe;
 
 #define MAX_BUF 1024
-int NO_PROCESOS = 4;
+int NO_PROCESOS = 21;
 int NO_IO = 20;
 #define NO_SEMAFOROS 8
 
@@ -41,11 +37,11 @@ void desligarFifo();
 int main() {
 	int semId, shmId1, shmId2, shmId3, contadorLectura, contadorMemoria, processCounter, bytesLeidos, pipe;
 	char *nombreSemaforo = {"/semaforo7"};	
-	char *auxLectura;
-	variablePipe* buffer;
+	char *auxLectura;	
 	int childPid, grandsonPid;	
 	char lectura[150];	
 	char *myfifo = "/tmp/myfifo11";	
+	int counter, charCounter, noBytes;	
 	FILE  **file;
 
 	variableMem *arregloMem;	
@@ -55,7 +51,7 @@ int main() {
 	if(semId != -1) {		
 		shmId1 = crearMemoriaCompartida(1, &arregloMem);
 		file = (FILE**) malloc(10*sizeof(FILE*));
-		for(int counter = 0; counter < 10; counter++){
+		for(counter = 0; counter < 10; counter++){
 			crearArchivo(&file[counter], counter);
 		}
 		/* creacion de pipe */
@@ -69,13 +65,13 @@ int main() {
 					break;
 				case 0:
 					if(processCounter == 0){
-						for(contadorLectura = 0; contadorLectura < (NO_IO * NO_PROCESOS -1); contadorLectura++){
-							bytesLeidos = read(pipe, buffer, sizeof(variablePipe));
-							printf("bytes leidos: %d, tipo: %d, datos: %s\n", bytesLeidos, buffer->caso, buffer->datos);
-							escribirLinea(&file[buffer->caso], buffer->datos);
+						for(contadorLectura = 0; contadorLectura < (NO_IO * (NO_PROCESOS - 1)); contadorLectura++){							
+							noBytes = read(pipe, lectura, sizeof(lectura));
+							/*printf("bytes leidos: %d, tipo: %c, datos: %s\n -- tamanio: %d char %d", noBytes, (lectura[strlen(lectura) - 1] - 97), lectura, strlen(lectura), lectura[strlen(lectura) - 1]);*/
+							escribirLinea(&file[lectura[strlen(lectura) - 1] - 97], lectura);
 							operacionSemaforo(semId, 7, 1);
 						}
-						exit(0);
+						/*printf("termina proceso de pipe\n");*/
 					}else{
 						for (contadorLectura = 0; contadorLectura < NO_IO; ) {
 							/* decrementar semaforo consumidor */
@@ -87,17 +83,13 @@ int main() {
 								/* printf("valores %d, %d\n", aux->bandera, aux.datos); */
 								if (aux->bandera == 1) {
 									lectura[0] = '\0';
-									sprintf(lectura, "Consumidor %d, no. lectura %d, datos: %s\n", processCounter, contadorLectura + 1, aux->datos);
-									printf("Consumidor %d, no. lectura %d, datos: %s, %d\n", processCounter, contadorLectura + 1, aux->datos, aux->datos[0]);								
+									sprintf(lectura, "Consumidor %d, no. lectura %d, datos: %s", processCounter, contadorLectura + 1, aux->datos);
+									/*printf("Consumidor %d, no. lectura %d, datos: %s, %d\n", processCounter, contadorLectura + 1, aux->datos, aux->datos[0]);*/
 									/* pipe */
-									buffer = (variablePipe*) malloc(sizeof(variablePipe));
-									buffer->caso = (aux->datos[0] - 97);
-									printf("--%s\n", lectura);
-									for(int charCounter = 0; lectura[charCounter] != '\0'; charCounter++)
-										buffer->datos[charCounter] = lectura[charCounter];
-									operacionSemaforo(semId, 7, 0);
-									printf("buffer enviado %d, %s \n", buffer->caso, buffer->datos);
-									write(pipe, &buffer, sizeof(variablePipe));
+									operacionSemaforo(semId, 7, 0);									
+									/*printf("buffer enviado: %s \n -- tamanio %d, char %c\n", lectura, strlen(lectura), lectura[strlen(lectura) - 1]);*/
+									noBytes = write(pipe, lectura, sizeof(lectura));
+									/*printf("no de bytes enviados %d \n", noBytes);*/
 									/*  */
 									aux->bandera = 0;
 									aux->datos[0] = '\0';
@@ -109,9 +101,9 @@ int main() {
 							}
 							/* aumentar semaforo productor */
 							operacionSemaforo(semId, 0, 1);
-						}	
-						exit(0);
+						}							
 					}
+					exit(0);
 				default:
 					break;
 			} 
@@ -172,9 +164,9 @@ int crearSemaforo(char* nombreSemaforo) {
 }
 
 int inicializarSemaforo(int semId, int noSem, int valor) {
-	union semun arg;
-	arg.val = valor;
-	return (semctl(semId, noSem, SETVAL, arg));
+	/*union semun arg;
+	arg.val = valor;*/
+	return (semctl(semId, noSem, SETVAL, valor));
 }
 
 int crearMemoriaCompartida(int noMem, variableMem** value) {
@@ -243,7 +235,7 @@ void imprimirSemaforos(int semId) {
 }
 
 void crearArchivo(FILE** file, int contador) {
-	char mainPath[150] = "/Users/condeluis/Documents/SO/segundoSemestre/Semaforos/Practica5/archivos/";	
+	char mainPath[150] = "./archivos/";	
 	char aux[10] = "";
 	char path[160] = "";
 	FILE *ptr;			
@@ -256,5 +248,5 @@ void crearArchivo(FILE** file, int contador) {
 }
 
 void escribirLinea(FILE** file, char* line){
-	fprintf(*file, "%s", line);
+	fprintf(*file, "%s\n", line);
 }
