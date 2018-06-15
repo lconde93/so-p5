@@ -16,8 +16,9 @@ typedef struct memoriaCompartida{
 	char datos[10];	
 } variableMem;
 
-int NO_PROCESOS = 10;
+int NO_PROCESOS = 3;
 int NO_IO = 20;
+#define NO_SEMAFOROS 8
 
 int crearSemaforo(char*);
 int inicializarSemaforo(int, int, int);
@@ -77,7 +78,7 @@ int main() {
 			} 
 		}	
 
-		for(processCounter = 0; processCounter < 10; processCounter ++) 
+		for(processCounter = 0; processCounter < NO_PROCESOS; processCounter ++) 
 			wait(&childPid);
 	
 		shmdt(&shmId1);        
@@ -90,14 +91,14 @@ int main() {
 
 int crearSemaforo(char* nombreSemaforo) {
 	/*                         P  C  M1 M2 M3  */
-	int valoresIniciales[7] = {3, 0, 1, 1, 1, 1, 1};
+	int valoresIniciales[8] = {5, 0, 1, 1, 1, 1, 1, 1};
 	int semId = -1, contador, bandera, banderaDestruir;
 	key_t key = ftok("/bin/ls", 70);
-	semId = semget(key, 7, 0666|IPC_CREAT|IPC_EXCL) ;
+	semId = semget(key, 8, 0666|IPC_CREAT|IPC_EXCL) ;
 	if (semId == -1) {
 		switch(errno) {
     		case EEXIST:    			
-    			semId = semget(key, 7, 0666);
+    			semId = semget(key, 8, 0666);
     			printf("Se liga a los semaforos\n");
     			break;
 			default:
@@ -106,7 +107,7 @@ int crearSemaforo(char* nombreSemaforo) {
     	}
 	}else{
 		printf("Se crearon los semaforos\n");
-		for (contador = 0; contador < 7; contador++) {
+		for (contador = 0; contador < 8; contador++) {
 			bandera = -1;
 			bandera = inicializarSemaforo(semId, contador, valoresIniciales[contador]);
 			if (bandera == -1) {

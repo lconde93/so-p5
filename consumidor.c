@@ -17,9 +17,15 @@ typedef struct memoriaCompartida{
 	char datos[10];
 } variableMem;
 
+typedef struct memoriaPipe{
+	int caso;
+	char datos[150];
+}variablePipe;
+
 #define MAX_BUF 1024
-int NO_PROCESOS = 10;
+int NO_PROCESOS = 4;
 int NO_IO = 20;
+#define NO_SEMAFOROS 8
 
 int crearSemaforo(char*);
 int inicializarSemaforo(int, int, int);
@@ -28,28 +34,33 @@ int crearMemoriaCompartida(int, variableMem**);
 int obtenerValorSemaforo(int, int);
 int operacionSemaforo(int, int, int);
 void imprimirSemaforos(int);
-void crearArchivo(FILE**, int, int*);
+void crearArchivo(FILE**, int);
 void escribirLinea(FILE**, char*);
 void desligarFifo();
 
 int main() {
-	int semId, shmId1, shmId2, shmId3, contadorLectura, contadorMemoria, processCounter, bytesLeidos;
+	int semId, shmId1, shmId2, shmId3, contadorLectura, contadorMemoria, processCounter, bytesLeidos, pipe;
 	char *nombreSemaforo = {"/semaforo7"};	
 	char *auxLectura;
-	char bufferLeido[150] = "";
+	variablePipe* buffer;
 	int childPid, grandsonPid;	
-	char lectura[150];
-	int pipesArray[10];
+	char lectura[150];	
+	char *myfifo = "/tmp/myfifo11";	
 	FILE  **file;
+
 	variableMem *arregloMem;	
 	semId = crearSemaforo(nombreSemaforo);
+	
 	
 	if(semId != -1) {		
 		shmId1 = crearMemoriaCompartida(1, &arregloMem);
 		file = (FILE**) malloc(10*sizeof(FILE*));
 		for(int counter = 0; counter < 10; counter++){
-			crearArchivo(&file[counter], counter, &pipesArray[counter]);
+			crearArchivo(&file[counter], counter);
 		}
+		/* creacion de pipe */
+		mkfifo(myfifo, 0666);
+		pipe = open(myfifo, O_RDWR);		
 		for(processCounter = 0; processCounter < NO_PROCESOS; processCounter ++) {
 			childPid = fork();
 			switch(childPid) {
@@ -57,60 +68,64 @@ int main() {
 					printf("Error al crear el proceso hijo\n");
 					break;
 				case 0:
-					for (contadorLectura = 0; contadorLectura < NO_IO; ) {
-						/* decrementar semaforo consumidor */
-						operacionSemaforo(semId, 1, 0);
-						for(contadorMemoria = 2 ; contadorMemoria < 7; contadorMemoria++) {
-							int contadorCaracteres;
-							operacionSemaforo(semId, contadorMemoria, 0);
-							variableMem* aux = &arregloMem[contadorMemoria - 2];
-							/* printf("valores %d, %d\n", aux->bandera, aux.datos); */
-							if (aux->bandera == 1) {
-								lectura[0] = '\0';
-								sprintf(lectura, "Consumidor %d, no. lectura %d, datos: %s\n", processCounter + 1, contadorLectura + 1, aux->datos);								
-								printf("Consumidor %d, no. lectura %d, datos: %s\n", processCounter + 1, contadorLectura + 1, aux->datos);								
-								aux->bandera = 0;
-								aux->datos[0] = '\0';
-								grandsonPid = fork();
-								switch(grandsonPid){
-									case -1:
-										break;
-									case 0:/* child */
-										bytesLeidos = read(pipesArray[aux->datos[0] - 97], bufferLeido, MAX_BUF);
-										bufferLeido[bytesLeidos] = '\0';
-										escribirLinea(&file[aux->datos[0] - 97], bufferLeido);
-										exit(0);
-									default:/* father */
-										write(pipesArray[aux->datos[0] - 97], lectura, (strlen(lectura)+1)); 
-										break;
-
-								}
-								wait(&grandsonPid);
-								operacionSemaforo(semId, contadorMemoria, 1);	
-								contadorLectura ++;				
-								break;
-							}else
-								operacionSemaforo(semId, contadorMemoria, 1);
+					if(processCounter == 0){
+						for(contadorLectura = 0; contadorLectura < (NO_IO * NO_PROCESOS -1); contadorLectura++){
+							bytesLeidos = read(pipe, buffer, sizeof(variablePipe));
+							printf("bytes leidos: %d, tipo: %d, datos: %s\n", bytesLeidos, buffer->caso, buffer->datos);
+							escribirLinea(&file[buffer->caso], buffer->datos);
+							operacionSemaforo(semId, 7, 1);
 						}
-						/* aumentar semaforo productor */
-						operacionSemaforo(semId, 0, 1);
-					}	
-					exit(0);
+						exit(0);
+					}else{
+						for (contadorLectura = 0; contadorLectura < NO_IO; ) {
+							/* decrementar semaforo consumidor */
+							operacionSemaforo(semId, 1, 0);
+							for(contadorMemoria = 2 ; contadorMemoria < 7; contadorMemoria++) {
+								int contadorCaracteres;
+								operacionSemaforo(semId, contadorMemoria, 0);
+								variableMem* aux = &arregloMem[contadorMemoria - 2];
+								/* printf("valores %d, %d\n", aux->bandera, aux.datos); */
+								if (aux->bandera == 1) {
+									lectura[0] = '\0';
+									sprintf(lectura, "Consumidor %d, no. lectura %d, datos: %s\n", processCounter, contadorLectura + 1, aux->datos);
+									printf("Consumidor %d, no. lectura %d, datos: %s, %d\n", processCounter, contadorLectura + 1, aux->datos, aux->datos[0]);								
+									/* pipe */
+									buffer = (variablePipe*) malloc(sizeof(variablePipe));
+									buffer->caso = (aux->datos[0] - 97);
+									printf("--%s\n", lectura);
+									for(int charCounter = 0; lectura[charCounter] != '\0'; charCounter++)
+										buffer->datos[charCounter] = lectura[charCounter];
+									operacionSemaforo(semId, 7, 0);
+									printf("buffer enviado %d, %s \n", buffer->caso, buffer->datos);
+									write(pipe, &buffer, sizeof(variablePipe));
+									/*  */
+									aux->bandera = 0;
+									aux->datos[0] = '\0';
+									operacionSemaforo(semId, contadorMemoria, 1);	
+									contadorLectura ++;				
+									break;
+								}else
+									operacionSemaforo(semId, contadorMemoria, 1);
+							}
+							/* aumentar semaforo productor */
+							operacionSemaforo(semId, 0, 1);
+						}	
+						exit(0);
+					}
 				default:
 					break;
 			} 
 		}
 
-		for(processCounter = 0; processCounter < 10; processCounter ++){
+		for(processCounter = 0; processCounter < NO_PROCESOS; processCounter ++)
 			fclose(file[processCounter]);
-			close(pipesArray[processCounter]);			
-		}
-		desligarFifo();			
-		for(processCounter = 0; processCounter < 10; processCounter ++) 
+		
+		close(pipe);
+		unlink(myfifo);
+		for(processCounter = 0; processCounter < NO_PROCESOS; processCounter ++) 
 			wait(&childPid);
 			
 		shmdt(&shmId1);
-        
 		shmctl (shmId1 , IPC_RMID , 0);        
 		destruirSemaforo(semId);
 	}	
@@ -123,14 +138,14 @@ int main() {
 
 int crearSemaforo(char* nombreSemaforo) {
 	/*                         P  C  M1 M2 M3  */
-	int valoresIniciales[7] = {3, 0, 1, 1, 1, 1, 1};
+	int valoresIniciales[8] = {5, 0, 1, 1, 1, 1, 1, 1};
 	int semId = -1, contador, bandera, banderaDestruir;
 	key_t key = ftok("/bin/ls", 70);
-	semId = semget(key, 7, 0666|IPC_CREAT|IPC_EXCL) ;
+	semId = semget(key, 8, 0666|IPC_CREAT|IPC_EXCL) ;
 	if (semId == -1) {
 		switch(errno) {
     		case EEXIST:    			
-    			semId = semget(key, 7, 0666);
+    			semId = semget(key, 8, 0666);
     			printf("Se liga a los semaforos\n");
     			break;
 			default:
@@ -139,7 +154,7 @@ int crearSemaforo(char* nombreSemaforo) {
     	}
 	}else{
 		printf("Se crearon los semaforos\n");
-		for (contador = 0; contador < 7; contador++) {
+		for (contador = 0; contador < 8; contador++) {
 			bandera = -1;
 			bandera = inicializarSemaforo(semId, contador, valoresIniciales[contador]);
 			if (bandera == -1) {
@@ -227,7 +242,7 @@ void imprimirSemaforos(int semId) {
 	}
 }
 
-void crearArchivo(FILE** file, int contador, int *pipe) {
+void crearArchivo(FILE** file, int contador) {
 	char mainPath[150] = "/Users/condeluis/Documents/SO/segundoSemestre/Semaforos/Practica5/archivos/";	
 	char aux[10] = "";
 	char path[160] = "";
@@ -237,25 +252,9 @@ void crearArchivo(FILE** file, int contador, int *pipe) {
 	strcpy(path, mainPath);
 	strcat(path, aux);
 	/* printf("%s\n", path); */
-	*file = fopen(path, "a+");	
-	/* creacion de pipe */
-	mkfifo(path, 0666);
-	*pipe = open(path, O_RDWR);
+	*file = fopen(path, "a+");		
 }
 
 void escribirLinea(FILE** file, char* line){
 	fprintf(*file, "%s", line);
-}
-
-void desligarFifo(){
-	char mainPath[150] = "/Users/condeluis/Documents/SO/segundoSemestre/Semaforos/Practica5/archivos/";	
-	char aux[10] = "";
-	char path[160] = "";
-	for(int contador = 0; contador < 10; contador++) {
-		sprintf(aux,"%d.txt", contador + 1);
-		strcpy(path, mainPath);
-		strcat(path, aux);
-		unlink(path);
-	}
-	
 }
