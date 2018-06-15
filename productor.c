@@ -16,7 +16,7 @@ typedef struct memoriaCompartida{
 	char datos[10];	
 } variableMem;
 
-int NO_PROCESOS = 20;
+int NO_PROCESOS = 10;
 int NO_IO = 20;
 #define NO_SEMAFOROS 8
 

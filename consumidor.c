@@ -19,7 +19,7 @@ typedef struct memoriaCompartida{
 
 
 #define MAX_BUF 1024
-int NO_PROCESOS = 21;
+int NO_PROCESOS = 11;
 int NO_IO = 20;
 #define NO_SEMAFOROS 8
 
@@ -77,19 +77,17 @@ int main() {
 							/* decrementar semaforo consumidor */
 							operacionSemaforo(semId, 1, 0);
 							for(contadorMemoria = 2 ; contadorMemoria < 7; contadorMemoria++) {
-								int contadorCaracteres;
 								operacionSemaforo(semId, contadorMemoria, 0);
 								variableMem* aux = &arregloMem[contadorMemoria - 2];
 								/* printf("valores %d, %d\n", aux->bandera, aux.datos); */
 								if (aux->bandera == 1) {
 									lectura[0] = '\0';
 									sprintf(lectura, "Consumidor %d, no. lectura %d, datos: %s", processCounter, contadorLectura + 1, aux->datos);
-									/*printf("Consumidor %d, no. lectura %d, datos: %s, %d\n", processCounter, contadorLectura + 1, aux->datos, aux->datos[0]);*/
+									printf("Consumidor %d, no. lectura %d, datos: %s\n", processCounter, contadorLectura + 1, aux->datos);
 									/* pipe */
-									operacionSemaforo(semId, 7, 0);									
+									operacionSemaforo(semId, 7, 0);
 									/*printf("buffer enviado: %s \n -- tamanio %d, char %c\n", lectura, strlen(lectura), lectura[strlen(lectura) - 1]);*/
-									noBytes = write(pipe, lectura, sizeof(lectura));
-									/*printf("no de bytes enviados %d \n", noBytes);*/
+									noBytes = write(pipe, lectura, sizeof(lectura));									
 									/*  */
 									aux->bandera = 0;
 									aux->datos[0] = '\0';
@@ -109,13 +107,14 @@ int main() {
 			} 
 		}
 
-		for(processCounter = 0; processCounter < NO_PROCESOS; processCounter ++)
+		for(processCounter = 0; processCounter < NO_PROCESOS - 1; processCounter ++)
 			fclose(file[processCounter]);
-		
-		close(pipe);
-		unlink(myfifo);
+				
 		for(processCounter = 0; processCounter < NO_PROCESOS; processCounter ++) 
 			wait(&childPid);
+
+		close(pipe);
+		unlink(myfifo);
 			
 		shmdt(&shmId1);
 		shmctl (shmId1 , IPC_RMID , 0);        
@@ -243,8 +242,8 @@ void crearArchivo(FILE** file, int contador) {
 	sprintf(aux,"%d.txt", contador + 1);
 	strcpy(path, mainPath);
 	strcat(path, aux);
-	/* printf("%s\n", path); */
-	*file = fopen(path, "a+");		
+	*file = fopen(path, "a+");
+	/**file = fopen(path, "w");*/
 }
 
 void escribirLinea(FILE** file, char* line){
