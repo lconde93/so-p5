@@ -17,7 +17,7 @@ typedef struct memoriaCompartida{
 } variableMem;
 
 int NO_PROCESOS = 10;
-int NO_IO = 20;
+int NO_IO = 1000;
 #define NO_SEMAFOROS 8
 
 int crearSemaforo(char*);
